@@ -1,19 +1,41 @@
 FROM python:3.10-slim
 
-WORKDIR /app
-COPY . .
-
-# System packages required by Playwright & FFmpeg
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    wget curl gnupg unzip ffmpeg \
-    libglib2.0-0 libnss3 libgconf-2-4 libfontconfig1 \
-    libxss1 libasound2 libatk1.0-0 libgtk-3-0 \
+    ffmpeg \
+    wget \
+    curl \
+    gnupg \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libxss1 \
+    libgtk-3-0 \
+    libx11-xcb1 \
+    unzip \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy project files
+COPY . .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ⬇️ Install Playwright browsers!
-RUN python -m playwright install --with-deps
+# Install Playwright browsers
+RUN playwright install --with-deps
 
+# Expose port for webhook
+EXPOSE 8080
+
+# Start the bot
 CMD ["python", "main.py"]
