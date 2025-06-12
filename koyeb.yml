@@ -1,0 +1,22 @@
+name: video-downloader-bot
+
+services:
+  - name: downloader
+    git:
+      url: https://github.com/yourusername/your-bot-repo.git  # 🔁 Replace with your actual repo URL
+      branch: main
+      build_command: ""
+      run_command: python main.py
+    dockerfile_path: ./Dockerfile
+    ports:
+      - internal: 8080
+        external: 80
+    env:
+      - key: BOT_TOKEN
+        value: your-telegram-bot-token
+      - key: MONGO_URI
+        value: your-mongodb-uri
+      - key: ADMIN_IDS
+        value: 123456789  # comma-separated if multiple
+      - key: BASE_BOT_URL
+        value: https://your-koyeb-app-name.koyeb.app
