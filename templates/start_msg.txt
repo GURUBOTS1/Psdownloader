@@ -1,0 +1,24 @@
+👋 Welcome to the OTT Video Downloader Bot!
+
+🎥 This bot helps you **download videos from .m3u8 links** used on major OTT platforms like:
+- Hotstar
+- SonyLIV
+- Zee5
+- ALTBalaji
+- Voot
+- JioCinema
+- Discovery+
+- And more!
+
+🔐 First, upload your **cookies** using the `/setcookies` command.
+
+⚙️ Then, send a **.m3u8 link**, and the bot will:
+1. Detect available qualities & languages
+2. Ask you to choose preferred options
+3. Download and merge audio/video
+4. Send the final file directly to you!
+
+🚫 This bot is **admin-only**. Unauthorized users will be blocked from using it.
+
+💡 Powered by Pyrogram • FFmpeg • MongoDB
+Maintained by @PSBOTz 🔧
