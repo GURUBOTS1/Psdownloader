@@ -1,37 +1,43 @@
-import asyncio
-import os
 from playwright.async_api import async_playwright
+
 
 async def extract_m3u8_link(url: str, cookie_path: str = None) -> str:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context_args = {}
+        context = await browser.new_context()
 
-        if cookie_path and os.path.exists(cookie_path):
-            import json
-            with open(cookie_path, 'r') as f:
-                cookies = json.load(f)
-            context_args['storage_state'] = {'cookies': cookies}
+        # Set cookies if available
+        if cookie_path:
+            with open(cookie_path, "r", encoding="utf-8") as f:
+                raw_cookie = f.read().strip()
+                # Convert raw cookie string to browser cookie format
+                cookies = []
+                for item in raw_cookie.split(";"):
+                    if "=" in item:
+                        name, value = item.strip().split("=", 1)
+                        cookies.append({
+                            "name": name.strip(),
+                            "value": value.strip(),
+                            "domain": ".hotstar.com"
+                        })
+                await context.add_cookies(cookies)
 
-        context = await browser.new_context(**context_args)
         page = await context.new_page()
+        await page.goto(url, wait_until="networkidle")
 
-        m3u8_link = None
+        # Extract m3u8 link from network logs
+        m3u8_url = None
+        async def log_request(route):
+            nonlocal m3u8_url
+            if ".m3u8" in route.request.url and "drm" not in route.request.url.lower():
+                m3u8_url = route.request.url
 
-        async def handle_response(response):
-            nonlocal m3u8_link
-            try:
-                if ".m3u8" in response.url and "drm" not in response.url.lower():
-                    m3u8_link = response.url
-            except:
-                pass
+        page.on("request", log_request)
 
-        page.on("response", handle_response)
-        await page.goto(url, timeout=60000)
-
-        await asyncio.sleep(10)  # wait for all requests
+        await page.wait_for_timeout(5000)  # wait 5 seconds for all network calls
         await browser.close()
 
-        if not m3u8_link:
-            raise Exception("No .m3u8 stream found. Possibly DRM-protected or login required.")
-        return m3u8_link
+        if not m3u8_url:
+            raise Exception("❌ .m3u8 link not found.")
+
+        return m3u8_url
