@@ -1,48 +1,57 @@
 import os
-import uuid
+import aiohttp
 import asyncio
-import logging
-import tempfile
+import subprocess
 from utils.ffmpeg_merge import merge_streams
 
-async def process_m3u8_video(m3u8_url: str, cookie_file: str = None) -> str:
-    """
-    Downloads video/audio streams from .m3u8 and merges them into a single MP4.
-    """
-    logging.info(f"Processing: {m3u8_url}")
-    temp_dir = tempfile.mkdtemp()
-    video_path = os.path.join(temp_dir, "video.ts")
-    audio_path = os.path.join(temp_dir, "audio.ts")
-    output_path = os.path.join("downloads", f"{uuid.uuid4().hex}.mp4")
-    os.makedirs("downloads", exist_ok=True)
 
-    base_command = [
-        "ffmpeg", "-y", "-headers", _cookie_header(cookie_file)
-    ] if cookie_file else ["ffmpeg", "-y"]
+async def download_file(url: str, headers: dict, output: str) -> None:
+    async with aiohttp.ClientSession(headers=headers) as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                raise Exception(f"Failed to download {url}: {resp.status}")
+            with open(output, "wb") as f:
+                while True:
+                    chunk = await resp.content.read(1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
 
-    video_cmd = base_command + ["-i", m3u8_url, "-c", "copy", "-bsf:a", "aac_adtstoasc", video_path]
-
-    try:
-        await _run(video_cmd)
-        # Attempt merge even if single stream
-        await merge_streams(video_path, None, output_path)
-        return output_path
-    finally:
-        for f in [video_path, audio_path, temp_dir]:
-            if f and os.path.exists(f):
-                try:
-                    os.remove(f) if os.path.isfile(f) else os.rmdir(f)
 
 def _cookie_header(cookie_file: str) -> str:
     if not cookie_file or not os.path.exists(cookie_file):
         return ""
     with open(cookie_file, "r") as f:
-        cookies = f.read().strip().replace("\n", "").replace("\r", "")
-        return f"Cookie: {cookies}\\r\\n"
+        return f"cookie: {f.read().strip()}"
 
-async def _run(cmd):
-    logging.info("Running: %s", " ".join(cmd))
-    process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
+
+async def process_m3u8_video(m3u8_url: str, cookie_path: str = None) -> str:
+    output_name = "output.mp4"
+    temp_audio = "audio.ts"
+    temp_video = "video.ts"
+
+    headers = {}
+    cookie_header = _cookie_header(cookie_path)
+    if cookie_header:
+        headers["Cookie"] = cookie_header.replace("cookie: ", "")
+
+    # Use FFmpeg to download both streams (for best compatibility)
+    command = [
+        "ffmpeg",
+        "-headers", f"Cookie: {headers['Cookie']}" if 'Cookie' in headers else "",
+        "-i", m3u8_url,
+        "-c", "copy",
+        output_name
+    ]
+
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await process.communicate()
+
     if process.returncode != 0:
         raise Exception(f"FFmpeg failed: {stderr.decode()}")
+
+    return output_name
