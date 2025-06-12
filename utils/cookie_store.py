@@ -1,37 +1,39 @@
 import os
-from pymongo import MongoClient
+import pymongo
 
-def is_admin(user_id, admin_ids):
-    return int(user_id) in admin_ids
+
+def get_db_client(mongo_uri):
+    return pymongo.MongoClient(mongo_uri)
+
 
 def save_cookie(mongo_uri, user_id, file_path):
-    client = MongoClient(mongo_uri)
+    client = get_db_client(mongo_uri)
     db = client['video_bot']
-    collection = db['cookies']
+    cookies = db['cookies']
 
     with open(file_path, 'r') as f:
         content = f.read()
 
-    collection.update_one(
+    cookies.update_one(
         {"user_id": user_id},
-        {"$set": {"cookie": content, "filename": os.path.basename(file_path)}},
+        {"$set": {"cookie_data": content}},
         upsert=True
     )
-    client.close()
+
 
 def get_cookie(mongo_uri, user_id):
-    client = MongoClient(mongo_uri)
+    client = get_db_client(mongo_uri)
     db = client['video_bot']
-    collection = db['cookies']
+    cookies = db['cookies']
 
-    record = collection.find_one({"user_id": user_id})
-    client.close()
+    record = cookies.find_one({"user_id": user_id})
+    if record:
+        tmp_file = f"/tmp/{user_id}_cookie.txt"
+        with open(tmp_file, 'w') as f:
+            f.write(record['cookie_data'])
+        return tmp_file
+    return None
 
-    if record and "cookie" in record:
-        os.makedirs("cookies", exist_ok=True)
-        cookie_path = f"cookies/{user_id}_{record.get('filename', 'cookie.txt')}"
-        with open(cookie_path, 'w') as f:
-            f.write(record["cookie"])
-        return cookie_path
-    else:
-        return None
+
+def is_admin(user_id, admin_ids):
+    return user_id in admin_ids
