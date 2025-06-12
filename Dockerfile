@@ -1,27 +1,19 @@
 FROM python:3.10-slim
 
 WORKDIR /app
-COPY . /app
+COPY . .
 
-# Install system dependencies
+# System packages required by Playwright & FFmpeg
 RUN apt-get update && apt-get install -y \
-    curl \
-    ffmpeg \
-    wget \
-    libglib2.0-0 \
-    libnss3 \
-    libgconf-2-4 \
-    libfontconfig1 \
-    libxss1 \
-    libasound2 \
-    libatk1.0-0 \
-    libgtk-3-0 \
+    wget curl gnupg unzip ffmpeg \
+    libglib2.0-0 libnss3 libgconf-2-4 libfontconfig1 \
+    libxss1 libasound2 libatk1.0-0 libgtk-3-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (very important!)
+# ⬇️ Install Playwright browsers!
 RUN python -m playwright install --with-deps
 
 CMD ["python", "main.py"]
