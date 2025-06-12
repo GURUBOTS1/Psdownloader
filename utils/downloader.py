@@ -22,25 +22,26 @@ def _cookie_header(cookie_file: str) -> str:
     if not cookie_file or not os.path.exists(cookie_file):
         return ""
     with open(cookie_file, "r") as f:
-        return f"cookie: {f.read().strip()}"
+        return f.read().strip()
 
 
 async def process_m3u8_video(m3u8_url: str, cookie_path: str = None) -> str:
     output_name = "output.mp4"
-    temp_audio = "audio.ts"
-    temp_video = "video.ts"
 
-    headers = {}
-    cookie_header = _cookie_header(cookie_path)
-    if cookie_header:
-        headers["Cookie"] = cookie_header.replace("cookie: ", "")
+    # Prepare headers if cookie is provided
+    cookie = _cookie_header(cookie_path)
+    headers_option = []
+    if cookie:
+        headers_option = ["-headers", f"Cookie: {cookie}"]
 
-    # Use FFmpeg to download both streams (for best compatibility)
+    # FFmpeg command to download and merge streams
     command = [
         "ffmpeg",
-        "-headers", f"Cookie: {headers['Cookie']}" if 'Cookie' in headers else "",
+        *headers_option,
         "-i", m3u8_url,
         "-c", "copy",
+        "-bsf:a", "aac_adtstoasc",
+        "-loglevel", "error",
         output_name
     ]
 
@@ -52,6 +53,6 @@ async def process_m3u8_video(m3u8_url: str, cookie_path: str = None) -> str:
     _, stderr = await process.communicate()
 
     if process.returncode != 0:
-        raise Exception(f"FFmpeg failed: {stderr.decode()}")
+        raise Exception(f"FFmpeg failed:\n{stderr.decode().strip()}")
 
     return output_name
