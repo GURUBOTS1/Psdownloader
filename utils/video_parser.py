@@ -1,29 +1,37 @@
-# utils/video_parser.py
+import asyncio
+import os
+from playwright.async_api import async_playwright
 
-import m3u8
-import requests
-import re
+async def extract_m3u8_link(url: str, cookie_path: str = None) -> str:
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context_args = {}
 
-def fetch_m3u8_playlist(url: str, headers: dict = None) -> m3u8.M3U8:
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return m3u8.loads(response.text)
+        if cookie_path and os.path.exists(cookie_path):
+            import json
+            with open(cookie_path, 'r') as f:
+                cookies = json.load(f)
+            context_args['storage_state'] = {'cookies': cookies}
 
-def parse_variants(playlist: m3u8.M3U8) -> list:
-    variants = []
-    for p in playlist.playlists:
-        quality = p.stream_info.resolution
-        bandwidth = p.stream_info.bandwidth
-        uri = p.uri
-        lang_match = re.search(r'lang=([a-zA-Z-]+)', uri)
-        language = lang_match.group(1) if lang_match else "Unknown"
-        variants.append({
-            "uri": uri,
-            "resolution": f"{quality[0]}x{quality[1]}" if quality else "Audio",
-            "bandwidth": bandwidth,
-            "language": language
-        })
-    return variants
+        context = await browser.new_context(**context_args)
+        page = await context.new_page()
 
-def is_audio_video_separate(playlist: m3u8.M3U8) -> bool:
-    return bool(playlist.media and len(playlist.media) > 0)
+        m3u8_link = None
+
+        async def handle_response(response):
+            nonlocal m3u8_link
+            try:
+                if ".m3u8" in response.url and "drm" not in response.url.lower():
+                    m3u8_link = response.url
+            except:
+                pass
+
+        page.on("response", handle_response)
+        await page.goto(url, timeout=60000)
+
+        await asyncio.sleep(10)  # wait for all requests
+        await browser.close()
+
+        if not m3u8_link:
+            raise Exception("No .m3u8 stream found. Possibly DRM-protected or login required.")
+        return m3u8_link
