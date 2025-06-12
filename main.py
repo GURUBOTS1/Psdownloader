@@ -2,13 +2,11 @@ import os
 import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from utils import (
-    save_cookie,
-    get_cookie,
-    process_m3u8_video,
-)
 from dotenv import load_dotenv
 from aiohttp import web
+
+from utils.cookie_store import save_cookie, get_cookie, is_admin
+from utils.downloader import process_m3u8_video
 
 load_dotenv()
 
@@ -23,10 +21,6 @@ WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8080))
 MONGO_URI = os.getenv("MONGO_URI")
 
 app = Client("video_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
-# ✅ Helper function defined here
-def is_admin(user_id: int, admin_ids: list) -> bool:
-    return user_id in admin_ids
 
 @app.on_message(filters.command("start"))
 async def start_command(client, message: Message):
@@ -67,16 +61,20 @@ async def handle_link(client, message: Message):
     except Exception as e:
         await message.reply(f"❌ Failed: {e}")
 
-# Webhook health check & webhook setup
+# Webhook health check
 async def handle_healthcheck(request):
     return web.Response(text="OK")
 
 async def start_webhook():
     await app.start()
-    runner = web.AppRunner(web.Application())
+    web_app = web.Application()
+    web_app.router.add_get("/", handle_healthcheck)
+
+    runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", WEBHOOK_PORT)
     await site.start()
+
     await app.set_webhook(WEBHOOK_URL)
     print("✅ Bot ready via webhook.")
 
