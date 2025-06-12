@@ -3,7 +3,6 @@ import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from dotenv import load_dotenv
-from aiohttp import web
 
 from utils.cookie_store import save_cookie, get_cookie, is_admin
 from utils.downloader import process_m3u8_video
@@ -16,11 +15,10 @@ API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS").split(',')))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8080))
 MONGO_URI = os.getenv("MONGO_URI")
 
 app = Client("video_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
 
 @app.on_message(filters.command("start"))
 async def start_command(client, message: Message):
@@ -28,6 +26,7 @@ async def start_command(client, message: Message):
         await message.reply("👋 Welcome, Admin! Send any OTT `.m3u8` link or use /setcookies to upload cookies.")
     else:
         await message.reply("❌ This bot is restricted to admins only.")
+
 
 @app.on_message(filters.command("setcookies") & filters.private)
 async def set_cookies(client, message: Message):
@@ -41,6 +40,7 @@ async def set_cookies(client, message: Message):
     await message.download(file_path)
     save_cookie(MONGO_URI, message.from_user.id, file_path)
     await message.reply("✅ Cookies saved successfully and will be reused until expiry.")
+
 
 @app.on_message(filters.text & filters.private)
 async def handle_link(client, message: Message):
@@ -61,23 +61,6 @@ async def handle_link(client, message: Message):
     except Exception as e:
         await message.reply(f"❌ Failed: {e}")
 
-# Webhook health check
-async def handle_healthcheck(request):
-    return web.Response(text="OK")
-
-async def start_webhook():
-    await app.start()
-    web_app = web.Application()
-    web_app.router.add_get("/", handle_healthcheck)
-
-    runner = web.AppRunner(web_app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", WEBHOOK_PORT)
-    await site.start()
-
-    await app.set_webhook(WEBHOOK_URL)
-    print("✅ Bot ready via webhook.")
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(start_webhook())
+    app.run()
