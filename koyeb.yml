@@ -1,22 +1,21 @@
-name: video-downloader-bot
+name: ott-downloader-bot
 
-services:
-  - name: downloader
-    git:
-      url: https://github.com/yourusername/your-bot-repo.git  # 🔁 Replace with your actual repo URL
-      branch: main
-      build_command: ""
-      run_command: python main.py
-    dockerfile_path: ./Dockerfile
-    ports:
-      - internal: 8080
-        external: 80
-    env:
-      - key: BOT_TOKEN
-        value: your-telegram-bot-token
-      - key: MONGO_URI
-        value: your-mongodb-uri
-      - key: ADMIN_IDS
-        value: 123456789  # comma-separated if multiple
-      - key: BASE_BOT_URL
-        value: https://your-koyeb-app-name.koyeb.app
+routes:
+  - path: /
+    src_port: 8080
+
+envs:
+  - key: BOT_TOKEN
+    value: ${BOT_TOKEN}
+  - key: API_ID
+    value: ${API_ID}
+  - key: API_HASH
+    value: ${API_HASH}
+  - key: MONGO_URI
+    value: ${MONGO_URI}
+  - key: ADMIN_IDS
+    value: ${ADMIN_IDS}
+  - key: WEBHOOK_URL
+    value: ${WEBHOOK_URL}
+  - key: PORT
+    value: "8080"
