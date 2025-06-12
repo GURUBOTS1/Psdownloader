@@ -3,7 +3,6 @@ import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from utils import (
-    is_admin,
     save_cookie,
     get_cookie,
     process_m3u8_video,
@@ -25,6 +24,9 @@ MONGO_URI = os.getenv("MONGO_URI")
 
 app = Client("video_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
+# ✅ Helper function defined here
+def is_admin(user_id: int, admin_ids: list) -> bool:
+    return user_id in admin_ids
 
 @app.on_message(filters.command("start"))
 async def start_command(client, message: Message):
@@ -32,7 +34,6 @@ async def start_command(client, message: Message):
         await message.reply("👋 Welcome, Admin! Send any OTT `.m3u8` link or use /setcookies to upload cookies.")
     else:
         await message.reply("❌ This bot is restricted to admins only.")
-
 
 @app.on_message(filters.command("setcookies") & filters.private)
 async def set_cookies(client, message: Message):
@@ -46,7 +47,6 @@ async def set_cookies(client, message: Message):
     await message.download(file_path)
     save_cookie(MONGO_URI, message.from_user.id, file_path)
     await message.reply("✅ Cookies saved successfully and will be reused until expiry.")
-
 
 @app.on_message(filters.text & filters.private)
 async def handle_link(client, message: Message):
@@ -67,7 +67,6 @@ async def handle_link(client, message: Message):
     except Exception as e:
         await message.reply(f"❌ Failed: {e}")
 
-
 # Webhook health check & webhook setup
 async def handle_healthcheck(request):
     return web.Response(text="OK")
@@ -75,6 +74,7 @@ async def handle_healthcheck(request):
 async def start_webhook():
     await app.start()
     runner = web.AppRunner(web.Application())
+    await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", WEBHOOK_PORT)
     await site.start()
     await app.set_webhook(WEBHOOK_URL)
@@ -83,4 +83,3 @@ async def start_webhook():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(start_webhook())
-  
