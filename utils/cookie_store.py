@@ -1,31 +1,37 @@
-# utils/cookie_store.py
-
-from pymongo import MongoClient
 import os
-import datetime
+from pymongo import MongoClient
 
-MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
-db = client["ott_bot"]
-cookie_col = db["cookies"]
+def is_admin(user_id, admin_ids):
+    return int(user_id) in admin_ids
 
-def save_cookie(admin_id: int, cookie_str: str) -> None:
-    cookie_col.update_one(
-        {"admin_id": admin_id},
-        {
-            "$set": {
-                "cookie": cookie_str,
-                "updated_at": datetime.datetime.utcnow()
-            }
-        },
+def save_cookie(mongo_uri, user_id, file_path):
+    client = MongoClient(mongo_uri)
+    db = client['video_bot']
+    collection = db['cookies']
+
+    with open(file_path, 'r') as f:
+        content = f.read()
+
+    collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"cookie": content, "filename": os.path.basename(file_path)}},
         upsert=True
     )
+    client.close()
 
-def get_cookie(admin_id: int) -> str | None:
-    record = cookie_col.find_one({"admin_id": admin_id})
-    if record:
-        return record["cookie"]
-    return None
+def get_cookie(mongo_uri, user_id):
+    client = MongoClient(mongo_uri)
+    db = client['video_bot']
+    collection = db['cookies']
 
-def cookie_exists(admin_id: int) -> bool:
-    return cookie_col.count_documents({"admin_id": admin_id}) > 0
+    record = collection.find_one({"user_id": user_id})
+    client.close()
+
+    if record and "cookie" in record:
+        os.makedirs("cookies", exist_ok=True)
+        cookie_path = f"cookies/{user_id}_{record.get('filename', 'cookie.txt')}"
+        with open(cookie_path, 'w') as f:
+            f.write(record["cookie"])
+        return cookie_path
+    else:
+        return None
