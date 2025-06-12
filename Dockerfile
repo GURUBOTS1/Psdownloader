@@ -1,24 +1,21 @@
-# Use official Python base image
 FROM python:3.10-slim
 
-# Install FFmpeg and system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    curl \
-    git \
-    && apt-get clean
-
-# Set working directory
 WORKDIR /app
 
-# Copy project files
-COPY . .
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Copy requirements and install
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose the port used by the bot (Koyeb)
+# Copy bot files
+COPY . .
+
+# Expose port for health check
 EXPOSE 8080
 
-# Start the bot with webhook
 CMD ["python", "main.py"]
