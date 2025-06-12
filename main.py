@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 
 from utils.cookie_store import save_cookie, get_cookie, is_admin
 from utils.downloader import process_m3u8_video
+from utils.video_parser import extract_m3u8_link
 
 load_dotenv()
-
 logging.basicConfig(level=logging.INFO)
 
 API_ID = int(os.getenv("API_ID"))
@@ -23,7 +23,7 @@ app = Client("video_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_token
 @app.on_message(filters.command("start"))
 async def start_command(client, message: Message):
     if is_admin(message.from_user.id, ADMIN_IDS):
-        await message.reply("👋 Welcome, Admin! Send any OTT `.m3u8` link or use /setcookies to upload cookies.")
+        await message.reply("👋 Welcome, Admin! Send any OTT `.m3u8` link or full video URL (e.g., Hotstar), or use /setcookies to upload cookies.")
     else:
         await message.reply("❌ This bot is restricted to admins only.")
 
@@ -36,6 +36,7 @@ async def set_cookies(client, message: Message):
     if not message.document:
         return await message.reply("📎 Please upload your cookies file (e.g., `.txt` or `.json`).")
 
+    os.makedirs("cookies", exist_ok=True)
     file_path = f"cookies/{message.from_user.id}_{message.document.file_name}"
     await message.download(file_path)
     save_cookie(MONGO_URI, message.from_user.id, file_path)
@@ -48,18 +49,26 @@ async def handle_link(client, message: Message):
         return
 
     url = message.text.strip()
-    if not url.endswith(".m3u8"):
-        return await message.reply("❌ Not a valid `.m3u8` link.")
-
-    await message.reply("⏳ Processing your video...")
-
     cookie_path = get_cookie(MONGO_URI, message.from_user.id)
-    try:
-        output_file = await process_m3u8_video(url, cookie_path)
-        await message.reply_video(output_file, caption="✅ Here is your video.")
-        os.remove(output_file)
-    except Exception as e:
-        await message.reply(f"❌ Failed: {e}")
+
+    if url.endswith(".m3u8"):
+        await message.reply("⏳ Processing direct .m3u8 stream...")
+        try:
+            output_file = await process_m3u8_video(url, cookie_path)
+            await message.reply_video(output_file, caption="✅ Here is your video.")
+            os.remove(output_file)
+        except Exception as e:
+            await message.reply(f"❌ Failed: {e}")
+    else:
+        await message.reply("🔎 Extracting video stream link...")
+        try:
+            m3u8_url = await extract_m3u8_link(url, cookie_path)
+            await message.reply(f"🎯 Found `.m3u8` link:\n`{m3u8_url}`\n⏳ Now downloading...")
+            output_file = await process_m3u8_video(m3u8_url, cookie_path)
+            await message.reply_video(output_file, caption="✅ Here is your video.")
+            os.remove(output_file)
+        except Exception as e:
+            await message.reply(f"❌ Error while processing link: {e}")
 
 
 if __name__ == "__main__":
