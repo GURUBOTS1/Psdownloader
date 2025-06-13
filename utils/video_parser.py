@@ -1,43 +1,29 @@
+# utils/video_parser.py
 from playwright.async_api import async_playwright
 
+IGNORE_LIST = ["example.com", ...]  # Add domains from repo
 
 async def extract_m3u8_link(url: str, cookie_path: str = None) -> str:
+    # skip ignored domains
+    for d in IGNORE_LIST:
+        if d in url:
+            raise Exception(f"Domain {d} not supported")
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
-
-        # Set cookies if available
+        ctx = await browser.new_context()
+        # load cookies
         if cookie_path:
-            with open(cookie_path, "r", encoding="utf-8") as f:
-                raw_cookie = f.read().strip()
-                # Convert raw cookie string to browser cookie format
-                cookies = []
-                for item in raw_cookie.split(";"):
-                    if "=" in item:
-                        name, value = item.strip().split("=", 1)
-                        cookies.append({
-                            "name": name.strip(),
-                            "value": value.strip(),
-                            "domain": ".hotstar.com"
-                        })
-                await context.add_cookies(cookies)
-
-        page = await context.new_page()
+            with open(cookie_path) as f:
+                raw = f.read()
+                cookies = [{"name":n,"value":v,"domain":".hotstar.com"} for n,v in (c.split("=",1) for c in raw.split(";"))]
+                await ctx.add_cookies(cookies)
+        page = await ctx.new_page()
         await page.goto(url, wait_until="networkidle")
-
-        # Extract m3u8 link from network logs
-        m3u8_url = None
-        async def log_request(route):
-            nonlocal m3u8_url
-            if ".m3u8" in route.request.url and "drm" not in route.request.url.lower():
-                m3u8_url = route.request.url
-
-        page.on("request", log_request)
-
-        await page.wait_for_timeout(5000)  # wait 5 seconds for all network calls
+        m3u8 = None
+        page.on("request", lambda req: req.url if '.m3u8' in req.url.lower() else None)
+        await page.wait_for_timeout(7000)
         await browser.close()
-
-        if not m3u8_url:
-            raise Exception("❌ .m3u8 link not found.")
-
-        return m3u8_url
+        if not m3u8:
+            raise Exception("Failed to find m3u8 URL")
+        return m3u8
