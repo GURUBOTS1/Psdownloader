@@ -14,9 +14,9 @@ async def extract_m3u8_link(url: str, cookie_path: str = None) -> str:
 
     html = res.text
 
-    # Find .m3u8 links from the HTML
+    # Extract .m3u8 URLs
     matches = re.findall(r'https://[^"]+\.m3u8[^"]*', html)
     if not matches:
         raise Exception("No m3u8 link found")
     
-    return matches[0]  # Return the first valid link
+    return matches[0]  # Return the first found .m3u8 link
