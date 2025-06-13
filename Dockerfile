@@ -1,41 +1,46 @@
 FROM python:3.10-slim
 
-# Install system dependencies
+# Set environment
+ENV PYTHONUNBUFFERED=1
+
+# Install dependencies
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    wget \
     curl \
-    gnupg \
+    wget \
+    ffmpeg \
     libnss3 \
-    libatk1.0-0 \
     libatk-bridge2.0-0 \
-    libcups2 \
+    libx11-xcb1 \
     libxcomposite1 \
     libxdamage1 \
     libxrandr2 \
     libgbm1 \
-    libasound2 \
-    libxss1 \
     libgtk-3-0 \
-    libx11-xcb1 \
-    unzip \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    libasound2 \
+    libxshmfence1 \
+    libxss1 \
+    libnss3-tools \
+    libatk1.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxext6 \
+    fonts-liberation \
+    libappindicator3-1 \
+    libjpeg-dev \
+    git \
+    build-essential
 
-# Set working directory
-WORKDIR /app
-
-# Copy project files
-COPY . .
-
-# Install Python dependencies
+# Install pip packages
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
+# Install Playwright and its dependencies
+RUN pip install playwright
 RUN playwright install --with-deps
 
-# Expose port for webhook
-EXPOSE 8080
+# Add code
+COPY . /app
+WORKDIR /app
 
-# Start the bot
+# Set the startup command
 CMD ["python", "main.py"]
