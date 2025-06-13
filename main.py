@@ -19,11 +19,12 @@ MONGO_URI = os.getenv("MONGO_URI")
 
 app = Client("video_downloader_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-
 @app.on_message(filters.command("start"))
 async def start_command(client, message: Message):
     if is_admin(message.from_user.id, ADMIN_IDS):
-        await message.reply("👋 Welcome, Admin! Send any OTT `.m3u8` link or full video URL (e.g., Hotstar), or use /setcookies to upload cookies.")
+        await message.reply(
+            "👋 Welcome, Admin!\nSend any OTT `.m3u8` link or full video URL (e.g., Hotstar),\n\nUse /setcookies to upload cookies."
+        )
     else:
         await message.reply("❌ This bot is restricted to admins only.")
 
@@ -51,24 +52,22 @@ async def handle_link(client, message: Message):
     url = message.text.strip()
     cookie_path = get_cookie(MONGO_URI, message.from_user.id)
 
-    if url.endswith(".m3u8"):
-        await message.reply("⏳ Processing direct .m3u8 stream...")
-        try:
+    try:
+        if url.endswith(".m3u8"):
+            await message.reply("⏳ Processing direct .m3u8 stream...")
             output_file = await process_m3u8_video(url, cookie_path)
-            await message.reply_video(output_file, caption="✅ Here is your video.")
-            os.remove(output_file)
-        except Exception as e:
-            await message.reply(f"❌ Failed: {e}")
-    else:
-        await message.reply("🔎 Extracting video stream link...")
-        try:
+        else:
+            await message.reply("🔎 Extracting video stream link...")
             m3u8_url = await extract_m3u8_link(url, cookie_path)
             await message.reply(f"🎯 Found `.m3u8` link:\n`{m3u8_url}`\n⏳ Now downloading...")
             output_file = await process_m3u8_video(m3u8_url, cookie_path)
-            await message.reply_video(output_file, caption="✅ Here is your video.")
-            os.remove(output_file)
-        except Exception as e:
-            await message.reply(f"❌ Error while processing link: {e}")
+
+        await message.reply_video(output_file, caption="✅ Here is your video.")
+        os.remove(output_file)
+
+    except Exception as e:
+        logging.exception("Error processing link")
+        await message.reply(f"❌ Error while processing link: {e}")
 
 
 if __name__ == "__main__":
