@@ -1,15 +1,9 @@
-FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy
-
-ENV PYTHONUNBUFFERED=1
+FROM python:3.10-slim
 
 WORKDIR /app
-
 COPY . /app
 
-# Install Python packages
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Playwright Browsers (VERY IMPORTANT)
-RUN playwright install --with-deps
+RUN apt-get update && apt-get install -y ffmpeg && \
+    pip install --no-cache-dir -r requirements.txt
 
 CMD ["python", "main.py"]
