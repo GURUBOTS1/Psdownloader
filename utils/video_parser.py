@@ -1,29 +1,49 @@
 # utils/video_parser.py
+
+import asyncio
 from playwright.async_api import async_playwright
 
-IGNORE_LIST = ["example.com", ...]  # Add domains from repo
 
 async def extract_m3u8_link(url: str, cookie_path: str = None) -> str:
-    # skip ignored domains
-    for d in IGNORE_LIST:
-        if d in url:
-            raise Exception(f"Domain {d} not supported")
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context()
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        ctx = await browser.new_context()
-        # load cookies
-        if cookie_path:
-            with open(cookie_path) as f:
-                raw = f.read()
-                cookies = [{"name":n,"value":v,"domain":".hotstar.com"} for n,v in (c.split("=",1) for c in raw.split(";"))]
-                await ctx.add_cookies(cookies)
-        page = await ctx.new_page()
-        await page.goto(url, wait_until="networkidle")
-        m3u8 = None
-        page.on("request", lambda req: req.url if '.m3u8' in req.url.lower() else None)
-        await page.wait_for_timeout(7000)
-        await browser.close()
-        if not m3u8:
-            raise Exception("Failed to find m3u8 URL")
-        return m3u8
+        # If user provided cookies, load them
+        if cookie_path:
+            with open(cookie_path, 'r') as f:
+                raw_cookie = f.read().strip()
+            cookies = []
+            for item in raw_cookie.split(';'):
+                if '=' in item:
+                    name, value = item.strip().split('=', 1)
+                    cookies.append({
+                        'name': name,
+                        'value': value,
+                        'domain': '.' + url.split('/')[2],
+                    })
+            await context.add_cookies(cookies)
+
+        page = await context.new_page()
+
+        # Listen for .m3u8 requests
+        m3u8_url = None
+
+        async def capture_route(route):
+            nonlocal m3u8_url
+            if ".m3u8" in route.request.url:
+                m3u8_url = route.request.url
+            await route.continue_()
+
+        await context.route("**/*", capture_route)
+
+        try:
+            await page.goto(url, wait_until="networkidle", timeout=60000)
+            await asyncio.sleep(10)  # wait for player to load and request m3u8
+        finally:
+            await browser.close()
+
+        if not m3u8_url:
+            raise Exception("❌ Failed to find any .m3u8 link on the page.")
+
+        return m3u8_url
